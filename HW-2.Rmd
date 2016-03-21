@@ -1,6 +1,6 @@
 ---
 title: "MATH 216 Homework 2"
-author: "WRITE YOUR NAME HERE"
+author: "CARTER \"Mugga\" MERENSTEIN"
 output: html_document
 ---
 
@@ -8,6 +8,11 @@ output: html_document
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(foreign))
+suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(DT))
+
+set.seed(50)
+
 ```
 
 
@@ -15,9 +20,9 @@ suppressPackageStartupMessages(library(foreign))
 
 Please indicate
 
-* Who you collaborated with:
-* Roughly how much time you spent on this HW:
-* What gave you the most trouble:
+* Who you collaborated with: Nobody
+* Roughly how much time you spent on this HW: 
+* What gave you the most trouble: 
 * Any comments you have: 
 
 
@@ -44,27 +49,81 @@ pollution <- read.dta(url) %>%
 ### a)
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
+model_a = lm(mort~nox, data = pollution)
+res_a = resid(model_a)
+#summary(model_a)
+b <- coefficients(model_a)
+b
+confint(model_a)
+
+pa = ggplot(pollution, aes(x = nox, y = mort)) + geom_point()
+
+pa <- pa + geom_abline(intercept=b[1], slope=b[2], col="#F8766D", size=1)
+
+pa
+
+plot(density(res_a))
+plot(pollution$nox, res_a)
 
 ```
-
+> doesn't look linear, but the residuals seem normal. The right tail is a bit off though.
 
 ### b)
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
+pollution <- mutate(pollution, log_nox = log10(nox))
+
+model_b = lm(mort~log_nox, data = pollution)
+res_b = resid(model_b)
+#summary(model_b)
+b <- coefficients(model_b)
+b
+confint(model_a)
+
+pb = ggplot(pollution, aes(x = log_nox, y = mort)) + geom_point()
+
+pb <- pb + geom_abline(intercept=b[1], slope=b[2], col="#F8766D", size=1)
+
+pb
+
+plot(density(res_b))
+plot(pollution$log_nox, res_b)
 
 ```
+> This looks much better, but there are still 4 points that don't really pass the eye test of fitting in with the rest of the data. These might be shifted by some other factors.
 
 
 ### c)
 
-```{r, echo=FALSE, fig.width=12, fig.height=6}
-
-```
+> this is a log10 transform, meaning that an increase in 1 in the x is equivilent to multiplying x by 10. Therefore the slope of ~35 means that incrasing nox by 10x will increase mortality by 35 (deaths per 100,000)
 
 
 ### d)
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
+attach(pollution)
+plot(hc, mort)
+plot(log10(hc), mort)
+"log 10 transform helps with the skew here, looks similar to nox"
+
+plot(so2, mort)
+plot(log10(so2), mort)
+"log 10 seems to over correct"
+plot(sqrt(so2), mort)
+"square root transform seems better. This means an increase in x is an increase from x^2 to (x+1)^2"
+
+ggplot(pollution, aes(x = log10(nox), y = mort, color = log10(hc), size=sqrt(so2))) + geom_point()
+"Visualizing all of the variables in one plot makes it clear that they are pretty closely associated with one another"
+
+model_d <- lm(mort~log10(nox)*log10(hc)*sqrt(so2), data=pollution)
+summary(model_d)
+confint(model_d)
+
+"only log10(nox) is individually predictive of mortality. nox and hc combined actually predicts lower mort with higher values"
+
+summary(lm(mort~log10(nox)))
+
+"just nox has a much lower r^2 though, meaning it explains a lot less of the variance in mortality."
 
 ```
 
@@ -72,6 +131,9 @@ pollution <- read.dta(url) %>%
 ### e)
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
+
+predict(model_d, interval = "predict", level=0.95)
+"Only the first 2 rows of this modle really matter, since we are only dealing with values of 10^0 - 10^2"
 
 ```
 
@@ -106,16 +168,143 @@ Lec09 to the project directory `HW-2`.
 ```{r, echo=FALSE, cache=TRUE}
 # DO NOT EDIT THIS SECTION!
 profiles <- read.csv("profiles.csv", header=TRUE) %>% tbl_df()
+profiles <- profiles %>% sample_frac(0.1)
+
+profiles <- mutate(profiles, female = ifelse(sex=="f", 1, 0))
+p_female = mean(profiles$female)
+
+attach(profiles)
 ```
 
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 # Feel free to make multiple code blocks, but set echo, fig.width, fig.height as 
 # above
+
+hist(profiles$age)
+"seems like a good place to start"
+
+mc <- select(profiles, age, diet, drinks, drugs, education, sex, orientation, pets, religion, sign, smokes, speaks, status)
+#(multiple choince questions)
+
+ggplot(mc, aes(x=age)) + geom_histogram(bins = 11) + facet_grid(.~sex)
+"looks pretty much the same between the two, boring"
+
 ```
 
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 # Feel free to make multiple code blocks, but set echo, fig.width, fig.height as 
 # above
+
+
+"Let's just group random things by sex"
+group_by(mc, drugs, sex) %>% summarize(n())
+group_by(mc, diet, sex) %>% summarize(n())
+group_by(mc, pets, sex) %>% summarize(n())
+
+"this isn't terribly productive, so I'm not going to show all that I tried. Diet seemed like a good option though."
+
+veg <- filter(mc, diet == "anything" | diet == "mostly vegetarian" | diet == "strictly vegetarian")
+veg_df <- veg %>% group_by(diet, sex) %>% summarize(n())
+veg_2 <- veg %>% group_by(diet) %>%  summarize(n())
+veg_df <- inner_join(veg_2, veg_df, by=c("diet" = "diet")) ## why did it have to be like this to work??
+veg_df = rename(veg_df, group_total =  `n().x`, sex_total = `n().y`)
+veg_df <- mutate(veg_df, expect = group_total * (ifelse(sex=="f", p_female, 1-p_female)) %>%  round(digits = 1))
+veg_df <- mutate(veg_df, difference = sex_total - expect %>%  round(digits = 1))
+veg_df <- mutate(veg_df, percent_difference = (difference / sex_total * 100) %>% round(digits = 1))
+
+## ^ all that can be made a function to make this repeatable
+datatable(veg_df, options = list(searching = FALSE, pageLength = 20))
+
+"Narrowing in on vegetarians, we can compare the expected amounts based on the percent female to the actual amounts that are vegetarian."
 ```
+
+```{r, echo=FALSE, fig.width=6, fig.height=6}
+veg_df <- mutate(veg_df, d_s = paste(diet, sex, sep = "_"))
+
+ggplot(veg_df, aes(x = d_s, y = percent_difference, fill = sex)) + geom_bar(stat="identity") +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+
+"It seems like vegetarians are more likely to be female (and less likely to be male) than expected by random chance."
+
+```
+
+```{r, echo=FALSE, fig.width=12, fig.height=6}
+find.query <- function(char.vector, query){
+  which.has.query <- grep(query, char.vector, ignore.case = TRUE)
+  length(which.has.query) != 0
+}
+profile.has.query <- function(data.frame, query){
+  query <- tolower(query)
+  has.query <- apply(data.frame, 1, find.query, query=query)
+  return(has.query)
+}
+
+sex.by.query <- function(df, query){
+  profiles <- mutate(profiles, has_query = profile.has.query(df, query))
+  return(group_by(profiles, has_query) %>% summarize(prop_female = mean(female)))
+}
+
+count.by.query <- function(df, query){
+  profiles <- mutate(profiles, has_query = profile.has.query(df, query))
+  return(group_by(profiles, has_query) %>% summarize(count = n()))
+}
+## This only works for this assignment, but it lets me quickly check a lot of things. Also, it's slow and they're redundent. Good enough.
+
+essays <- select(profiles, contains("essay"), `female`)
+
+"We can quickly check proportions by the two functions above"
+
+count.by.query(essays, "swag")
+sex.by.query(essays, "swag")
+
+count.by.query(essays, "beer")
+sex.by.query(essays, "beer")
+
+count.by.query(essays, "Drake")
+sex.by.query(essays, "Drake")
+
+"This is slow af"
+
+```
+
+```{r, echo=FALSE, fig.width=12, fig.height=6}
+
+essays <- mutate(essays, female = ifelse(female==1, "FEMALE$$", "MALE$$"))
+#tag them with a string we can use to differentiate wihtout context
+mutate(essays, end_of_line = "@@@\n") %>% write.csv("essays.csv")
+#tag the end of the line, write to csv
+
+"I did some stuff here with python. I counted the number of respondents that used a given word, for total, male and female."
+
+w_counts <- read.csv("word_count.csv", header=TRUE)
+w_counts <- select(w_counts, -`X`)
+
+
+w_counts <- mutate(w_counts, expected_female = (in_total*p_female) %>% round(digits = 1))
+
+w_counts <- mutate(w_counts, percent_diff_female = ((in_females - expected_female)/expected_female) %>% round(digits = 3) * 100)
+
+w_counts <- arrange(w_counts, -percent_diff_female)
+
+
+datatable(w_counts, options = list(searching = FALSE, pageLength = 20))
+
+```
+> Now we have a data table of all the most common words, and how often they were used in males and females, and the percent difference between observed and expected
+
+```{r, echo=FALSE, fig.width=12, fig.height=6}
+
+top_20_female_words = top_n(w_counts, 20, percent_diff_female)
+
+
+p <- ggplot(top_20_female_words, aes(x = reorder(word, -percent_diff_female), y = percent_diff_female)) + geom_bar(stat="identity")
+p <- p + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+p
+
+```
+> The top 20 words found disporportionately in female responses. Percentage is percent more than the expected value, based off of the overall percent female. E.g. "female" occurs more than 100% times more than it would if it were randomly distributed. "Heels" shows the greatest difference, ignoreing "female"" and "mefemale," which is a weird artifact of the data scraping.
+
+
+
