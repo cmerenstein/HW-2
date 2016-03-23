@@ -113,7 +113,7 @@ plot(sqrt(so2), mort)
 "square root transform seems better. This means an increase in x is an increase from x^2 to (x+1)^2"
 
 ggplot(pollution, aes(x = log10(nox), y = mort, color = log10(hc), size=sqrt(so2))) + geom_point()
-"Visualizing all of the variables in one plot makes it clear that they are pretty closely associated with one another"
+"Visualizing all of the variables in one plot makes it clear that they are pretty closely associated with one another. That is, as the move to the left, the points get lighter and larger. Hc doesn't seem related to mortality at all, wheras so2 (size) and nox (x) are."
 
 model_d <- lm(mort~log10(nox)*log10(hc)*sqrt(so2), data=pollution)
 summary(model_d)
