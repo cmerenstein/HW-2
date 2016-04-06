@@ -58,7 +58,7 @@ confint(model_a)
 
 pa = ggplot(pollution, aes(x = nox, y = mort)) + geom_point()
 
-pa <- pa + geom_abline(intercept=b[1], slope=b[2], col="#F8766D", size=1)
+pa <- pa + geom_smooth(method="lm")
 
 pa
 
@@ -66,7 +66,7 @@ plot(density(res_a))
 plot(pollution$nox, res_a)
 
 ```
-> doesn't look linear, residuals look normally distributed in the y but not the x.
+> doesn't look linear, but the residuals seem normal. The right tail is a bit off though.
 
 ### b)
 
@@ -82,7 +82,7 @@ confint(model_a)
 
 pb = ggplot(pollution, aes(x = log_nox, y = mort)) + geom_point()
 
-pb <- pb + geom_abline(intercept=b[1], slope=b[2], col="#F8766D", size=1)
+pb <- pb + geom_smooth(method="lm")
 
 pb
 
@@ -123,7 +123,7 @@ confint(model_d)
 
 summary(lm(mort~log10(nox)))
 
-"just nox has a much lower r^2 though, meaning it explains a lot less of the variance in mortality."
+"Log10(nox) doesn't explain a lot of the variation though (low R^2 and adjusted R^2). This really means that a lot more than pollution dictates mortality."
 
 ```
 
@@ -131,28 +131,25 @@ summary(lm(mort~log10(nox)))
 ### e)
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
-
-first_half <- slice(pollution, 30)
+first_half = sample_frac(pollution, 0.5)
+first_half
 
 model_e <- lm(mort~log10(nox)*log10(hc)*sqrt(so2), data=first_half)
 
 predict(model_e)
 
-new <- slice(pollution, 30:60)
-
+new <- subset(pollution, !(dens %in% first_half$dens)) #density happens to not be duplicated. Could have made a city number variable otherwise
+new
 predict(model_e, new)
 
-"The predict for the second half matching the modle of the first looks similar to the first half. I suspect that the residuals will be similar for both, but I forgot to check and it's due now."
-
+"Throught the sample_frac function it now is looking at a random sampling rather than first half and second half"
 ```
 
 
 ### f) What do you think are the reasons for using cross-validation?
 
 
-
 > Cross validation prevents over-fitting. A regression may fit the first half of the data really well, but not the second half. This means that we fit the regression to some of the noise in the first half.
-
 
 
 ## Question 2:
@@ -171,7 +168,7 @@ Lec09 to the project directory `HW-2`.
 ```{r, echo=FALSE, cache=TRUE}
 # DO NOT EDIT THIS SECTION!
 profiles <- read.csv("profiles.csv", header=TRUE) %>% tbl_df()
-profiles <- profiles %>% sample_frac(0.1)
+# profiles <- profiles %>% sample_frac(0.1)
 
 profiles <- mutate(profiles, female = ifelse(sex=="f", 1, 0))
 p_female = mean(profiles$female)
@@ -190,7 +187,7 @@ hist(profiles$age)
 mc <- select(profiles, age, diet, drinks, drugs, education, sex, orientation, pets, religion, sign, smokes, speaks, status)
 #(multiple choince questions)
 
-ggplot(mc, aes(x=age)) + geom_histogram(bins = 11) + facet_grid(.~sex)
+ggplot(mc, aes(x=age, y =..density..)) + geom_histogram(bins = 11) + facet_grid(.~sex)
 "looks pretty much the same between the two, boring"
 
 ```
@@ -201,10 +198,10 @@ ggplot(mc, aes(x=age)) + geom_histogram(bins = 11) + facet_grid(.~sex)
 # above
 
 
-"Let's just group random things by sex"
-group_by(mc, drugs, sex) %>% summarize(n())
-group_by(mc, diet, sex) %>% summarize(n())
-group_by(mc, pets, sex) %>% summarize(n())
+# "Let's just group random things by sex"
+# group_by(mc, drugs, sex) %>% summarize(n())
+# group_by(mc, diet, sex) %>% summarize(n())
+# group_by(mc, pets, sex) %>% summarize(n())
 
 "this isn't terribly productive, so I'm not going to show all that I tried. Diet seemed like a good option though."
 
@@ -257,25 +254,18 @@ count.by.query <- function(df, query){
 
 essays <- select(profiles, contains("essay"), `female`)
 
-##We can quickly check proportions by the two functions above"
+"We can quickly check proportions by the two functions above"
 
-"\n\n
-Looking at the essays might be more productive. Let's check random words"
-
-
-"\"Swag\""
 count.by.query(essays, "swag")
 sex.by.query(essays, "swag")
 
-"\"beer\""
 count.by.query(essays, "beer")
 sex.by.query(essays, "beer")
 
-"\"Drake\""
 count.by.query(essays, "Drake")
 sex.by.query(essays, "Drake")
 
-"I did this for a bunch of others, but it's slow"
+"This is slow af"
 
 ```
 
@@ -286,7 +276,7 @@ essays <- mutate(essays, female = ifelse(female==1, "FEMALE$$", "MALE$$"))
 mutate(essays, end_of_line = "@@@\n") %>% write.csv("essays.csv")
 #tag the end of the line, write to csv
 
-"Fortunately, python exists. I counted the number of respondents that used a given word, for total, male and female."
+"I did some stuff here with python. I counted the number of respondents that used a given word, for total, male and female."
 
 w_counts <- read.csv("word_count.csv", header=TRUE)
 w_counts <- select(w_counts, -`X`)
@@ -299,10 +289,10 @@ w_counts <- mutate(w_counts, percent_diff_female = ((in_females - expected_femal
 w_counts <- arrange(w_counts, -percent_diff_female)
 
 
-datatable(w_counts, options = list(searching = TRUE, pageLength = 20))
+datatable(w_counts, options = list(searching = FALSE, pageLength = 20))
 
 ```
-> Now we have a data table of all the most common words, and how often they were used in males and females, and the percent difference between observed and expected
+> Now we have a data table of all the most common words, and how often they were used in males and females, and the percent difference between observed and expected. This is searchable for easier analysis.
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
@@ -314,7 +304,7 @@ p <- p + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 p
 
 ```
-> The top 20 words found disporportionately in female responses. Percentage is percent more than the expected value, based off of the overall percent female. E.g. "female" occurs more than 100% times more than it would if it were randomly distributed. "Heels" shows the greatest difference, ignoreing "female"" and "mefemale," which is a weird artifact of the data scraping.
+> The top 20 words found disporportionately in female responses. Percentage is percent more than the expected value, based off of the overall percent female. E.g. "female" occurs more than 100% times more than it would if it were randomly distributed. "Heels" shows the greatest difference, ignoreing "female"" and "mefemale," which is a weird artifact of the data scraping Honestly, the graph doesn't add a ton that the dataframe above doesn't capture.
 
 
 
